@@ -2,7 +2,7 @@
 
 This project is a **template for building a ComicRack .NET plugin**, not a useful plugin by itself. Use it as a starting point and adapt the sample code, resources, and package metadata for your plugin.
 
-.NET Plugins are a new plugin type that can be used in [ComicRack Community Edition](https://github.com/maforget/ComicRackCE), in addition to the existing IronPython plugins. It runs natiely using the same ecosystem that ComicRack itself uses. This makes it easier to create, test, debug. See the related [wiki page](https://github.com/maforget/ComicRackCE/wiki/.NET-plugin) for more information on the plugin engine.
+.NET Plugins are a new plugin type that can be used in [ComicRack Community Edition](https://github.com/maforget/ComicRackCE), in addition to the existing IronPython plugins. It runs natively using the same ecosystem that ComicRack itself uses. This makes it easier to create, test, debug. See the related [wiki page](https://github.com/maforget/ComicRackCE/wiki/.NET-plugin) for more information on the plugin engine.
 
 The project targets **.NET Framework 4.8**. `Directory.Build.props` configures the build, and `Directory.Build.targets` adds steps that place the generated plugin files in a plugin-specific folder under the ComicRack scripts directory.
 

@@ -1,0 +1,175 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project>
+	<!-- Check that PluginName is defined, otherwise take the AssemblyName -->
+	<PropertyGroup>
+		<PluginOutputName Condition="'$(PluginName)' != ''">$(PluginName)</PluginOutputName>
+		<PluginOutputName Condition="'$(PluginName)' == ''">$(AssemblyName)</PluginOutputName>
+	</PropertyGroup>
+	
+	
+	<!-- Determines the final location of the output files with fallback in case ScriptFolder isn't defined -->
+	<Target Name="ResolvePluginFolder">
+		<PropertyGroup>
+			<ScriptOutputFolder Condition="'$(ScriptFolder)' != ''">$(ScriptFolder)</ScriptOutputFolder>
+			<ScriptOutputFolder Condition="'$(ScriptFolder)' == ''">$(TargetDir)</ScriptOutputFolder>
+			<PluginOutputFolder>$([MSBuild]::EnsureTrailingSlash('$(ScriptOutputFolder)'))$(PluginOutputName)</PluginOutputFolder>
+		</PropertyGroup>
+		<Message Text="Resolved plugin folder to $(PluginOutputFolder)" Importance="high" />
+	</Target>
+
+	
+	<!-- Creates the plugin sub-folder -->
+	<Target Name="CreatePluginDir" AfterTargets="CopyFilesToOutputDirectory" DependsOnTargets="ResolvePluginFolder">
+		<MakeDir Directories="$(PluginOutputFolder)" Condition="!Exists('$(PluginOutputFolder)')" />
+		<Message Text="Creating directory $(PluginOutputFolder)" Importance="High" />
+	</Target>
+
+	
+	<!-- Copy compiled plugin to script folder -->
+	<Target Name="CopyCompiledPlugin" AfterTargets="CreatePluginDir" Condition="'$(IsSourcePlugin)' == 'false'">
+		<Copy SourceFiles="$(TargetPath)" DestinationFolder="$(PluginOutputFolder)"/>
+		<Message Text="Copying $(TargetFileName) to $(PluginOutputFolder)" Importance="High"/>
+
+		<!-- Debug only: copy the PDB next to the DLL so stack traces/debuggers get line info -->
+		<Copy SourceFiles="$(TargetDir)$(TargetName).pdb" DestinationFolder="$(PluginOutputFolder)"
+					Condition="'$(Configuration)' == 'Debug' And Exists('$(TargetDir)$(TargetName).pdb')"/>
+		<Message Text="Copying $(TargetName).pdb to $(PluginOutputFolder)" Importance="High"
+						 Condition="'$(Configuration)' == 'Debug' And Exists('$(TargetDir)$(TargetName).pdb')"/>
+	</Target>
+
+	
+	<!-- Copy plugin source files to script foler -->
+	<Target Name="CopySourceFile" AfterTargets="CreatePluginDir" Condition="'$(IsSourcePlugin)' == 'true'">
+		<ItemGroup>
+			<CsFilesToCopy Include="**\*.cs" Exclude="obj\**;bin\**;Properties\**" />
+		</ItemGroup>
+		<Copy SourceFiles="@(CsFilesToCopy)" DestinationFolder="$(PluginOutputFolder)" SkipUnchangedFiles="true"/>
+		<Message Text="Copying .cs files to $(PluginOutputFolder)" Importance="High"/>
+	</Target>
+	
+	
+	<!-- Creates the package.ini based on the info we added to the Directory.Build.props -->
+	<Target Name="GeneratePackageIni" AfterTargets="CreatePluginDir" DependsOnTargets="CreatePluginDir">
+		<ItemGroup>
+			<PackageLines Include="Name = $(PluginName)" Condition="'$(PluginOutputName)' != ''"/>
+			<PackageLines Include="Author = $(PluginAuthor)" Condition="'$(PluginAuthor)' != ''"/>
+			<PackageLines Include="Version = $(PluginVersion)" Condition="'$(PluginVersion)' != ''"/>
+			<PackageLines Include="Image = $(PluginImage)" Condition="'$(PluginImage)' != ''"/>
+			<PackageLines Include="Description = $(PluginDescription)" Condition="'$(PluginDescription)' != ''"/>
+			<PackageLines Include="HelpLink = $(PluginHelpLink)" Condition="'$(PluginHelpLink)' != ''"/>
+			<PackageLines Include="KeepFiles = $(PluginKeepFiles)" Condition="'$(PluginKeepFiles)' != ''"/>
+		</ItemGroup>
+		<WriteLinesToFile File="$(PluginOutputFolder)/package.ini" Overwrite="true" Lines="@(PackageLines)"/>
+		<Message Text="Creating package.ini file" Importance="high" />
+	</Target>
+
+
+	<!-- Creates the marker .csplugin file based on the info we added in this project -->
+	<Target Name="GenerateMarkerFile" AfterTargets="GeneratePackageIni" DependsOnTargets="CreatePluginDir;ResolveReferences" Condition="'$(IsSourcePlugin)' == 'true'">
+		<!-- Already provided by the plugin engine, so don't list them -->
+		<ItemGroup>
+			<FwRefDefault Include="mscorlib" />
+			<FwRefDefault Include="netstandard" />
+			<FwRefDefault Include="Microsoft.CSharp" />
+			<FwRefDefault Include="System" />
+			<FwRefDefault Include="System.Core" />
+			<FwRefDefault Include="System.Data" />
+			<FwRefDefault Include="System.Drawing" />
+			<FwRefDefault Include="System.Net.Http" />
+			<FwRefDefault Include="System.Windows.Forms" />
+			<FwRefDefault Include="System.Xml" />
+			<FwRefDefault Include="System.Xml.Linq" />
+			<FwRefDefault Include="System.Runtime.Serialization" />
+			<FwRefDefault Include="System.Numerics" />
+			<FwRefDefault Include="System.IO.Compression.FileSystem" />
+		</ItemGroup>
+		
+		<ItemGroup>
+			<!-- Package references: resolved DLLs that came from NuGet (direct + transitive) -->
+			<PkgRefDll Include="@(ReferencePath)" Condition="'%(ReferencePath.NuGetPackageId)' != ''" />
+			<!-- Framework references: <Reference Include="System.Xml" /> style items (no HintPath = GAC/framework) -->
+			<FwRef Include="@(Reference)" Condition="'%(Reference.HintPath)' == ''" />
+			<!-- Remove references already provided by the plugin engine -->
+			<FwRef Remove="@(FwRefDefault)" />
+		</ItemGroup>
+		<PropertyGroup>
+			<PkgRefLine>@(PkgRefDll->'%(Filename)%(Extension)', ';')</PkgRefLine> <!-- file name with .dll -->
+			<FwRefLine>@(FwRef->'%(Identity)', ';')</FwRefLine> 
+		</PropertyGroup>
+
+		<ItemGroup>
+			<MarkerFileLines Include="[Plugin]" />
+			<MarkerFileLines Include="References = $(PkgRefLine.Replace(';', '%3B'))" />
+			<MarkerFileLines Include="FrameworkReferences = $(FwRefLine.Replace(';', '%3B'))" />
+			<MarkerFileLines Include="LangVers = $(LangVersion)" />
+		</ItemGroup>
+		<WriteLinesToFile File="$(PluginOutputFolder)\$(PluginOutputName).csplugin" Overwrite="true" Lines="@(MarkerFileLines)" />
+		<Message Text="Creating $(PluginOutputName).csplugin marker file" Importance="high" />
+	</Target>
+
+
+	<!-- Copy Image resources to script folder -->
+	<Target Name="CopyImageResourcesFile" AfterTargets="GeneratePackageIni"  DependsOnTargets="CreatePluginDir"
+					Condition="'$(IsSourcePlugin)' == 'true' or '$(CopyResourcesImage)' == 'true'">
+		<ItemGroup>
+			<FilesImageToCopy Include="Resources\**\*.png" Exclude="obj\**;bin\**;Properties\**" />
+			<FilesImageToCopy Include="Resources\**\*.jpg" Exclude="obj\**;bin\**;Properties\**" />
+			<FilesImageToCopy Include="Resources\**\*.jpeg" Exclude="obj\**;bin\**;Properties\**" />		
+			<FilesImageToCopy Include="Resources\**\*.bmp" Exclude="obj\**;bin\**;Properties\**" />
+			<FilesImageToCopy Include="Resources\**\*.gif" Exclude="obj\**;bin\**;Properties\**" />
+		</ItemGroup>
+		<Copy SourceFiles="@(FilesImageToCopy)" DestinationFolder="$(PluginOutputFolder)" SkipUnchangedFiles="true"/>
+		<Message Text="Copying images resources to $(PluginOutputFolder)" Importance="High"/>
+	</Target>
+
+
+	<!-- Zip each language folder (fr, es, ...) in Resources to the plugin output folder -->
+	<Target Name="ZipLanguageResources" AfterTargets="GeneratePackageIni" DependsOnTargets="CreatePluginDir"
+					Condition="Exists('$(MSBuildProjectDirectory)\Resources')">
+		<ItemGroup>
+			<LanguageDir Include="$([System.IO.Directory]::GetDirectories('$(MSBuildProjectDirectory)\Resources'))" />
+		</ItemGroup>
+		<Message Text="Zipping %(LanguageDir.Filename) to $(PluginOutputFolder)" Importance="High" />
+		<ZipDirectory SourceDirectory="%(LanguageDir.FullPath)" DestinationFile="$(PluginOutputFolder)\%(LanguageDir.Filename).zip" Overwrite="true" />
+	</Target>
+
+
+	<!-- Copy package DLLs to the plugin folder -->
+	<Target Name="CopyPluginReferences" AfterTargets="GeneratePackageIni" DependsOnTargets="CreatePluginDir;ResolveReferences">
+		<ItemGroup>
+			<PluginPkgDll Include="@(ReferenceCopyLocalPaths)" Condition="'%(ReferenceCopyLocalPaths.NuGetPackageId)' != '' and '%(ReferenceCopyLocalPaths.Extension)' == '.dll'" />
+		</ItemGroup>
+		<Copy SourceFiles="@(PluginPkgDll)" DestinationFolder="$(PluginOutputFolder)" SkipUnchangedFiles="true" />
+	</Target>
+	
+	
+	<!-- Remove images files -->
+	<Target Name="CleanOutputImages" AfterTargets="Clean" DependsOnTargets="ResolvePluginFolder">
+		<ItemGroup>
+			<ImagesToDelete Include="$(PluginOutputFolder)\**\*.png" />
+			<ImagesToDelete Include="$(PluginOutputFolder)\**\*.jpg" />
+			<ImagesToDelete Include="$(PluginOutputFolder)\**\*.jpeg" />
+			<ImagesToDelete Include="$(PluginOutputFolder)\**\*.bmp" />
+			<ImagesToDelete Include="$(PluginOutputFolder)\**\*.gif" />
+		</ItemGroup>
+		<Delete Files="@(ImagesToDelete)" />
+	</Target>
+
+	
+	<!-- Remove plugin folder on cleanup -->
+	<Target Name="CleanPlugin" AfterTargets="CleanOutputImages" DependsOnTargets="ResolvePluginFolder">
+		<ItemGroup>
+			<PluginCleanupFiles Include="$(PluginOutputFolder)\$(TargetFileName)" />
+			<PluginCleanupFiles Include="$(PluginOutputFolder)\$(TargetName).pdb" />
+			<PluginCleanupFiles Include="$(PluginOutputFolder)\package.ini" />
+			<PluginCleanupFiles Include="$(PluginOutputFolder)\$(PluginOutputName).csplugin" />
+			<PluginCleanupFiles Include="$(PluginOutputFolder)\*.cs" />
+			<PluginCleanupFiles Include="$(PluginOutputFolder)\*.zip" />
+			<PluginCleanupFiles Include="$(PluginOutputFolder)\*.dll" />
+		</ItemGroup>
+		<Delete Files="@(PluginCleanupFiles)"/>
+		<RemoveDir Directories="$(PluginOutputFolder)" Condition="Exists('$(PluginOutputFolder)')" />
+	</Target>
+	
+	
+</Project>

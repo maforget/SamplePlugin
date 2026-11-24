@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+<TR xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" Name="Script.RenameBookFiles" CultureName="fr">
+  <Texts>
+		<Text Key="Name" Text="[Code Sample] Exemple de plugin .NET" Comment="[Code Sample] .NET Sample Plugin" />
+		<Text Key="Description" Text="Renvoie le nombre de livres" Comment="Returns the number of books" />
+		<Text Key="Library" Text="Vous avez {0} livres dans votre bibliothèque" Comment="You have {0} books in your library." />
+		<Text Key="Books" Text="Vous avez sélectioné {0} livres." Comment="You have selected {0} books." />
+		<Text Key="Editor" Text="Vous êtes actuellement en train de modifier le livre:\n{0}" Comment="You are currently editing the Book:\n{0}" />
+		<Text Key="Title" Text="Compte tenu du code HTML simulé suivant:" Comment="Given the following simulated html:" />
+		<Text Key="Header" Text="La valeur de h1 est {0}" Comment="h1 value is {0}" />
+  </Texts>
+</TR>

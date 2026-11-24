@@ -1,0 +1,7 @@
+<Solution>
+  <Folder Name="/Solution Items/">
+    <File Path="Directory.Build.props" />
+    <File Path="Directory.Build.targets" />
+  </Folder>
+  <Project Path="SamplePlugin/SamplePlugin.csproj" Id="2c1bf0e1-7aba-407d-9e49-ac5ec77658d9" />
+</Solution>

@@ -79,6 +79,22 @@ dotnet build .\SamplePlugin\SamplePlugin.csproj -t:Rebuild -p:Configuration=Debu
 
 Add more `-p:PropertyName=Value` arguments to override other properties, such as `PluginName` or `CopyResourcesImage`. Use an absolute `ScriptFolder` path to avoid ambiguity about how a relative path is resolved.
 
+## Overriding properties locally with a `.csproj.user` file
+
+You can set machine-specific values without changing the shared `Directory.Build.props`. Create a file named `SamplePlugin.csproj.user` next to `SamplePlugin.csproj` and add the properties you want to override:
+
+```xml
+<?xml version="1.0" encoding="utf-8" ?>
+<Project>
+	<PropertyGroup>
+		<ScriptFolder>C:\Sources\ComicRackCE\ComicRack\bin\Debug\net48\Data\Scripts</ScriptFolder>
+		<IsSourcePlugin>true</IsSourcePlugin>
+	</PropertyGroup>
+</Project>
+```
+
+The `.csproj.user` file applies to your local project and is ignored by Git because the repository ignores `*.user` files. You can create it locally without committing it or changing the shared build configuration. Command-line properties, such as `-p:ScriptFolder=...`, take precedence when supplied.
+
 ## Getting started
 
 1. Update the ComicRack installation and scripts paths for your environment. The provided values should work if you've used default locations for install & data folders.

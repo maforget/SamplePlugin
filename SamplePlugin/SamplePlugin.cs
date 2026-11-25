@@ -11,8 +11,13 @@ using HtmlAgilityPack;
 
 namespace SamplePlugin
 {
-    public class SamplePlugin : DotNetPlugin, ILibrary, IEditor, IBooks, IConfig
+    public class SamplePlugin : DotNetPlugin, ILibrary, IEditor, IBooks, IConfig, IDisposable
     {
+        public SamplePlugin()
+        {
+            Log("Creating SamplePlugin class");
+        }
+
         public override string Key { get; set; } = "SamplePlugin";
         public override string Name => "[Code Sample] .NET Sample Plugin";
         public override string Description => "Returns the number of books";
@@ -20,6 +25,11 @@ namespace SamplePlugin
         // Image that will be associated with this plugin
         // You can embed the plugin image as an embedded ressource and the plugin engine will read it from there, if no file exists in the plugin folder location
         public override string Image => "SamplePlugin.png";
+
+        public void Dispose()
+        {
+            Log("Disposing Plugin");
+        }
 
         // Implementation for Library (or generic) hooks
         public void Execute(ComicBook[] books)
@@ -80,5 +90,6 @@ namespace SamplePlugin
             MessageBox.Show(sb.ToString());
 
         }
+
     }
 }

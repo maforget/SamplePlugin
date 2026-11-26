@@ -83,7 +83,7 @@ msbuild .\SamplePlugin\SamplePlugin.csproj -t:Rebuild -p:Configuration=Debug -p:
 Or using the .NET CLI:
 
 ```powershell
-dotnet build .\SamplePlugin\SamplePlugin.csproj -t:Rebuild -p:Configuration=Debug -p:IsSourcePlugin=true '-p:ScriptFolder=C:\Exports\Another Export Path'
+dotnet build .\SamplePlugin\SamplePlugin.csproj --tl:off -t:Rebuild -p:Configuration=Debug -p:IsSourcePlugin=true '-p:ScriptFolder=C:\Exports\Another Export Path'
 ```
 
 Add more `-p:PropertyName=Value` arguments to override other properties, such as `PluginName` or `CopyResourcesImage`. Use an absolute `ScriptFolder` path to avoid ambiguity about how a relative path is resolved.

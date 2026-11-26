@@ -18,16 +18,6 @@
 		
 	</PropertyGroup>
 
-	<!-- Plugin Info, This will be used to generate the package.ini file -->
-	<PropertyGroup>
-		<PluginName>SamplePlugin</PluginName>
-		<PluginDescription>A Sample plugin example</PluginDescription>
-		<PluginAuthor>Author</PluginAuthor>
-		<PluginImage>SamplePlugin.png</PluginImage>
-		<PluginVersion>1.0</PluginVersion>
-		<PluginHelpLink>https://github.com/maforget/ComicRackCE/wiki/.NET-plugin</PluginHelpLink>
-		<PluginKeepFiles>user.ini</PluginKeepFiles>
-	</PropertyGroup>
 
 	<!-- Make sure .pdb are created when in debug configuration -->
 	<PropertyGroup Condition="'$(Configuration)' == 'Debug'">

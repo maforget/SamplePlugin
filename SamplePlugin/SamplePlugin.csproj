@@ -8,6 +8,17 @@
     <ImportWindowsDesktopTargets>true</ImportWindowsDesktopTargets>
   </PropertyGroup>
 
+	<!-- Plugin Info, This will be used to generate the package.ini file -->
+	<PropertyGroup>
+		<PluginName>SamplePlugin</PluginName>
+		<PluginDescription>A Sample plugin example</PluginDescription>
+		<PluginAuthor>Author</PluginAuthor>
+		<PluginImage>SamplePlugin.png</PluginImage>
+		<PluginVersion>1.0</PluginVersion>
+		<PluginHelpLink>https://github.com/maforget/SamplePlugin</PluginHelpLink>
+		<PluginKeepFiles>user.ini</PluginKeepFiles>
+	</PropertyGroup>
+
   <ItemGroup>
     <EmbeddedResource Include="Resources\SamplePlugin.png" />
   </ItemGroup>

@@ -1,0 +1,154 @@
+name: Build and Release Plugin
+
+on:
+  push:
+    branches:
+      - master
+    paths-ignore:
+      - '**.md'
+  workflow_dispatch:
+
+permissions:
+  contents: write   # required to create releases
+
+env:
+  # Adjust to match your repository
+  PROJECT_PATH: SamplePlugin/SamplePlugin.csproj
+  COMICRACK_URL: https://github.com/maforget/ComicRackCE/releases/download/nightly/ComicRackCE_nightly.zip
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Download and extract ComicRack CE
+        shell: pwsh
+        run: |
+          $zip = Join-Path $env:RUNNER_TEMP 'ComicRackCE_nightly.zip'
+          $dest = Join-Path $env:RUNNER_TEMP 'ComicRack'
+          Invoke-WebRequest -Uri $env:COMICRACK_URL -OutFile $zip
+          Expand-Archive -Path $zip -DestinationPath $dest -Force
+
+          # ComicRack.Plugins.dll is the entry point; without it the build can't work
+          $dll = Get-ChildItem -Path $dest -Recurse -Filter 'ComicRack.Plugins.dll' | Select-Object -First 1
+          if (-not $dll) { throw 'ComicRack.Plugins.dll was not found in the downloaded archive.' }
+
+          # Forward slashes + trailing slash are safe for MSBuild path concatenation
+          $crPath = ($dll.DirectoryName -replace '\\', '/') + '/'
+          "COMICRACK_PATH=$crPath" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          Write-Host "ComicRackPath = $crPath"
+
+      - name: Restore
+        run: dotnet restore ${{ env.PROJECT_PATH }}
+
+      - name: Read plugin info from project
+        shell: pwsh
+        run: |
+          # Ask MSBuild itself, so Directory.Build.props/targets and the .csproj are all taken into account
+          $json = dotnet msbuild $env:PROJECT_PATH -nologo -p:Configuration=Release "-p:ComicRackPath=$env:COMICRACK_PATH" "-getProperty:PluginOutputName,PluginVersion"
+          if ($LASTEXITCODE -ne 0) { throw "Failed to evaluate project properties: $json" }
+          $props = ($json | Out-String | ConvertFrom-Json).Properties
+
+          # PluginOutputName is already PluginName, or AssemblyName when PluginName is empty
+          $name = $props.PluginOutputName
+          if ([string]::IsNullOrWhiteSpace($name)) { throw 'Could not determine the plugin name.' }
+
+          $version = $props.PluginVersion
+          if ([string]::IsNullOrWhiteSpace($version)) {
+            $versionLabel = 'nightly'
+            $tagPrefix = 'nightly'
+          } else {
+            $versionLabel = "v$version"
+            $tagPrefix = "v$version"
+          }
+
+          $lines = @(
+            "PLUGIN_NAME=$name",
+            "VERSION_LABEL=$versionLabel",
+            "RELEASE_TAG=$tagPrefix-build.${{ github.run_number }}",
+            "RELEASE_NAME=$name $versionLabel (build ${{ github.run_number }})"
+          )
+          $lines | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          $lines | ForEach-Object { Write-Host $_ }
+
+      - name: Build compiled plugin
+        shell: pwsh
+        run: |
+          $out = Join-Path $env:RUNNER_TEMP 'out/compiled'
+          New-Item -ItemType Directory -Path $out -Force | Out-Null
+          dotnet build $env:PROJECT_PATH -t:Rebuild -c Release --no-restore `
+            -p:IsSourcePlugin=false `
+            "-p:ComicRackPath=$env:COMICRACK_PATH" `
+            "-p:ScriptFolder=$out"
+          if ($LASTEXITCODE -ne 0) { throw 'Compiled plugin build failed.' }
+
+      - name: Build source plugin
+        shell: pwsh
+        run: |
+          $out = Join-Path $env:RUNNER_TEMP 'out/source'
+          New-Item -ItemType Directory -Path $out -Force | Out-Null
+          dotnet build $env:PROJECT_PATH -t:Rebuild -c Release --no-restore `
+            -p:IsSourcePlugin=true `
+            "-p:ComicRackPath=$env:COMICRACK_PATH" `
+            "-p:ScriptFolder=$out"
+          if ($LASTEXITCODE -ne 0) { throw 'Source plugin build failed.' }
+
+      - name: Package .crplugin files
+        shell: pwsh
+        run: |
+          $dist = Join-Path $env:GITHUB_WORKSPACE 'dist'
+          New-Item -ItemType Directory -Path $dist -Force | Out-Null
+
+          $targets = @(
+            @{ Root = Join-Path $env:RUNNER_TEMP 'out/compiled'; File = "$($env:PLUGIN_NAME).crplugin" },
+            @{ Root = Join-Path $env:RUNNER_TEMP 'out/source';   File = "$($env:PLUGIN_NAME)-source.crplugin" }
+          )
+
+          foreach ($t in $targets) {
+            # The build creates ScriptFolder\<PluginOutputName>; zip only the contents of that subfolder
+            $pluginDir = Join-Path $t.Root $env:PLUGIN_NAME
+            if (-not (Test-Path $pluginDir)) {
+              $subDirs = @(Get-ChildItem -Path $t.Root -Directory)
+              if ($subDirs.Count -ne 1) { throw "Expected plugin folder '$pluginDir' (or exactly one subfolder) in $($t.Root)." }
+              $pluginDir = $subDirs[0].FullName
+            }
+            if (-not (Get-ChildItem -Path $pluginDir -Recurse -File)) { throw "No files found in $pluginDir." }
+
+            # Compress-Archive only accepts .zip, so zip first then rename
+            $zipPath = Join-Path $dist ($t.File -replace '\.crplugin$', '.zip')
+            Compress-Archive -Path (Join-Path $pluginDir '*') -DestinationPath $zipPath -Force
+            Move-Item -Path $zipPath -Destination (Join-Path $dist $t.File) -Force
+            Write-Host "Created $($t.File) from $pluginDir"
+          }
+
+          Get-ChildItem $dist
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: plugins
+          path: dist/*.crplugin
+          if-no-files-found: error
+
+      - name: Create release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: ${{ env.RELEASE_NAME }}
+          body: |
+            Automated build of commit ${{ github.sha }}.
+
+            - `${{ env.PLUGIN_NAME }}.crplugin`: compiled plugin
+            - `${{ env.PLUGIN_NAME }}-source.crplugin`: source plugin
+          files: |
+            dist/${{ env.PLUGIN_NAME }}.crplugin
+            dist/${{ env.PLUGIN_NAME }}-source.crplugin
+          fail_on_unmatched_files: true

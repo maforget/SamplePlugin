@@ -51,7 +51,7 @@
 	<!-- Creates the package.ini based on the info we added to the Directory.Build.props -->
 	<Target Name="GeneratePackageIni" AfterTargets="CreatePluginDir" DependsOnTargets="CreatePluginDir">
 		<ItemGroup>
-			<PackageLines Include="Name = $(PluginName)" Condition="'$(PluginOutputName)' != ''"/>
+			<PackageLines Include="Name = $(PluginOutputName)" Condition="'$(PluginOutputName)' != ''"/>
 			<PackageLines Include="Author = $(PluginAuthor)" Condition="'$(PluginAuthor)' != ''"/>
 			<PackageLines Include="Version = $(PluginVersion)" Condition="'$(PluginVersion)' != ''"/>
 			<PackageLines Include="Image = $(PluginImage)" Condition="'$(PluginImage)' != ''"/>
